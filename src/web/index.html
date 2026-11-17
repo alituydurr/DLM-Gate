@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DLM-Gate | Canlı Dağıtık Ajan Güvenliği Kontrol Paneli</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 12px 18px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+    header p { font-size: 0.82rem; color: var(--muted); }
+    .badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #0b1324;
+      border: 1px solid var(--border);
+      font-family: monospace;
+    }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1d4ed8;
+      color: #fff;
+      font-weight: 600;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    button.btn-warn { background: #b45309; }
+    button.btn-danger { background: #b91c1c; }
+    button.btn-ok { background: #15803d; }
+    button.btn-reset { background: #334155; margin-left: auto; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .card h2 {
+      font-size: 0.95rem;
+      color: var(--accent);
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+    .tree-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.82rem;
+      margin-bottom: 10px;
+    }
+    .tree-level {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .node-pill {
+      background: #0b1324;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      min-width: 190px;
+      text-align: center;
+    }
+    .node-pill strong { color: var(--accent); display: block; }
+    .node-pill small { color: var(--muted); font-family: monospace; font-size: 0.74rem; }
+    .node-pill.active-step {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.55);
+      transform: scale(1.03);
+      transition: all 0.2s ease;
+    }
+    .anim-status {
+      font-family: monospace;
+      font-size: 0.78rem;
+      color: var(--ok);
+      text-align: center;
+      padding: 4px 8px;
+      background: #0b1324;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .budget-row { margin-bottom: 10px; }
+    .budget-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+      font-family: monospace;
+    }
+    .bar-bg {
+      height: 12px;
+      background: #0b1324;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--ok);
+      transition: width 0.25s;
+    }
+    .bar-fill.breach { background: var(--err); }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .metric-box {
+      background: #0b1324;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .metric-box .val { font-size: 1.25rem; font-weight: 700; color: var(--accent); font-family: monospace; }
+    .metric-box .lbl { font-size: 0.72rem; color: var(--muted); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      font-family: monospace;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 6px 8px;
+      text-align: left;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    .pill-ok { color: var(--ok); font-weight: 700; }
+    .pill-err { color: var(--err); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🛡️ DLM-Gate: Dağıtık LLM Ajanlarında Etiket Yayılımı & Atomik Sızıntı Bütçesi</h1>
+      <p>Derinlik-2 Spanning Tree (Bcast_ST / Ccast_ST) • Vector Clock • CRDT vs. Ricart-Agrawala Mutex • Mealy FSM (Teorem 1 & 2)</p>
+    </div>
+    <div class="badges">
+      <span class="badge" id="badge-scenario">DURUM: HAZIR</span>
+      <span class="badge" id="badge-kafka">BUS: LOCAL_MEMORY</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button onclick="trigger('/api/scenario/1')">1. Senaryo 1: Spanning Tree (2n-2=6 Mesaj) & Çok Sahipli Bütçe</button>
+    <button class="btn-warn" onclick="trigger('/api/scenario/2')">2. Senaryo 2: Prompt Injection & Teorem 1/2 (Dayanıklı İndirme)</button>
+    <button class="btn-danger" onclick="trigger('/api/scenario/3/race')">3a. Senaryo 3 (Mutex Kapalı): Koordinasyonsuz Kopyalar → Çift Harcama (6.0 > 4.0 bit)</button>
+    <button class="btn-ok" onclick="trigger('/api/scenario/3/mutex')">3b. Senaryo 3 (Mod A): Ricart-Agrawala + G-Counter (12 Mesaj)</button>
+    <button onclick="trigger('/api/scenario/3/firestore')">3c. Senaryo 3 (Mod B): Cloud Run + Firestore Atomic Transaction</button>
+    <button class="btn-reset" onclick="trigger('/api/reset')">Sıfırla (Reset)</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1. Derinliği 2 Olan Görev Ağacı (Spanning Tree: Kök → A → C ve Kök → B)</h2>
+      <div class="tree-box">
+        <div class="anim-status" id="tree-anim-banner">Ağaç Durumu: Beklemede (Senaryo seçildiğinde 2n-2 = 6 mesaj adım adım canlandırılır)</div>
+        <div class="tree-level">
+          <div class="node-pill" id="pill-ROOT">
+            <strong>KÖK (Koordinatör)</strong>
+            <small id="node-root-label">L_root: Bekleniyor</small><br/>
+            <small id="node-root-readers">Etkin Okuyucu: -</small>
+          </div>
+        </div>
+        <div class="tree-level">
+          <div class="node-pill" id="pill-A">
+            <strong>Ara Düğüm A (Sağlık)</strong>
+            <small>L_A = {A:{A,B,C}} [HIGH]</small><br/>
+            <small id="node-a-join">Ccast Birleşimi (A ⊔ C): -</small>
+          </div>
+          <div class="node-pill" id="pill-B">
+            <strong>Yaprak Düğüm B (Siber - Dış)</strong>
+            <small>L_B = {B:{A,B}} [LOW / Untrusted]</small><br/>
+            <small>Doğrudan Kökün Çocuğu</small>
+          </div>
+        </div>
+        <div class="tree-level">
+          <div class="node-pill" id="pill-C">
+            <strong>Yaprak Düğüm C (Lojistik)</strong>
+            <small>L_C = {C:{A,C}} [HIGH]</small><br/>
+            <small>Düğüm A'nın Çocuğu (Derinlik = 2)</small>
+          </div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Tip</th><th>Yön</th><th>DLM Etiketi</th><th>Vector Clock</th></tr>
+        </thead>
+        <tbody id="tree-msg-body">
+          <tr><td colspan="5">Henüz ağaç mesajlaşması çalıştırılmadı.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>2. Kurum Başına QIF Sızıntı Bütçesi (B_A, B_B, B_C) & Karmaşıklık Sayaçları</h2>
+      <div id="budgets-container"></div>
+      <div class="metrics">
+        <div class="metric-box">
+          <div class="val" id="metric-tree-msgs">0 / 6</div>
+          <div class="lbl">Bcast_ST + Ccast_ST (2n-2)</div>
+        </div>
+        <div class="metric-box">
+          <div class="val" id="metric-mutex-msgs">0 / 12</div>
+          <div class="lbl">Ricart-Agrawala (3×2(N-1))</div>
+        </div>
+        <div class="metric-box">
+          <div class="val" id="metric-schema-bits">2.0 bit</div>
+          <div class="lbl">Şema Sınırı log2|O_i| (|O_i|=4)</div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:14px;">3. Yan Kanal Denetim Analitiği (Kafka `declass-audit` → Stream Summary)</h2>
+      <table>
+        <thead>
+          <tr><th>Pencere</th><th>Onay (Bulut)</th><th>Red (Yerel)</th><th>Harcanan (A/B/C)</th><th>Ağaç/Mutex</th><th>Bütçe Koruması</th></tr>
+        </thead>
+        <tbody id="audit-body">
+          <tr><td colspan="6">Denetim kaydı yok.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>4. Deterministik İndirme Kapısı (Mealy FSM) Kararları & Hibrit Bulut Yönlendirme</h2>
+      <table>
+        <thead>
+          <tr><th>Sorgu ID</th><th>Şema / Değer</th><th>Karar & Yönlendirme</th><th>Gerekçe (Teorem 1 / 2)</th><th>ΔL (Bit)</th><th>Kalan (A/B/C)</th></tr>
+        </thead>
+        <tbody id="decisions-body">
+          <tr><td colspan="6">Henüz indirme kapısı kararı yok.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>5. Mod A: Ricart-Agrawala + Piggybacked G-Counter CRDT Mesaj İzleri (gate-1..3)</h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Tip</th><th>Gönderen → Alıcı</th><th>Lamport TS</th><th>Piggybacked G-Counter (Harcanan Bit)</th></tr>
+        </thead>
+        <tbody id="mutex-msg-body">
+          <tr><td colspan="5">Senaryo 3b çalıştırıldığında 12 Ricart-Agrawala mesajı burada listelenir.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function trigger(endpoint) {
+      const res = await fetch(endpoint, { method: 'POST' });
+      const state = await res.json();
+      render(state);
+    }
+
+    function render(state) {
+      document.getElementById('badge-scenario').textContent = 'SENARYO: ' + state.scenario;
+      document.getElementById('badge-kafka').textContent = 'BUS: ' + state.kafka_backend;
+
+      // Render budgets
+      const bCont = document.getElementById('budgets-container');
+      bCont.innerHTML = '';
+      for (const [owner, info] of Object.entries(state.budgets)) {
+        const pct = Math.min(100, Math.round((info.spent / info.max) * 100));
+        const breachClass = info.breached ? 'breach' : '';
+        const statusText = info.breached
+          ? `⚠️ BÜTÇE İHLALİ! Harcanan: ${info.spent} / ${info.max} bit`
+          : `Harcanan: ${info.spent} / ${info.max} bit (Kalan: ${info.remaining} bit)`;
+        bCont.innerHTML += `
+          <div class="budget-row">
+            <div class="budget-head">
+              <span>Kurum ${owner} (B_${owner})</span>
+              <span>${statusText}</span>
+            </div>
+            <div class="bar-bg"><div class="bar-fill ${breachClass}" style="width:${pct}%"></div></div>
+          </div>`;
+      }
+
+      // Render Spanning Tree
+      const tBody = document.getElementById('tree-msg-body');
+      if (state.tree) {
+        document.getElementById('metric-tree-msgs').textContent = `${state.tree.total_messages} / ${state.tree.theoretical_bound}`;
+        document.getElementById('node-a-join').textContent =
+          `A ⊔ C Okuyucular: {${state.tree.intermediate_a_label.effective_readers.join(',')}}`;
+        document.getElementById('node-root-label').textContent = state.tree.root_label.short;
+        document.getElementById('node-root-readers').textContent =
+          `effectiveReaders(L_root) = {${state.tree.root_label.effective_readers.join(',')}}`;
+        tBody.innerHTML = state.tree.messages.map(m => `
+          <tr>
+            <td>${m.step}</td>
+            <td>${m.msg_type}</td>
+            <td>${m.sender} → ${m.receiver}</td>
+            <td>${m.label}</td>
+            <td>${JSON.stringify(m.vc)}</td>
+          </tr>`).join('');
+        animateTreeMessages(state.tree.messages);
+      } else {
+        document.getElementById('metric-tree-msgs').textContent = '0 / 6';
+        tBody.innerHTML = '<tr><td colspan="5">Henüz ağaç mesajlaşması çalıştırılmadı.</td></tr>';
+      }
+
+      // Render Decisions
+      const dBody = document.getElementById('decisions-body');
+      if (state.decisions && state.decisions.length > 0) {
+        dBody.innerHTML = state.decisions.map(d => `
+          <tr>
+            <td>${d.query_id}</td>
+            <td>${d.schema_name}: ${d.emitted_value || 'BLOCKED'}</td>
+            <td class="${d.approved ? 'pill-ok' : 'pill-err'}">${d.approved ? 'ONAY → ' + d.route : 'RED → ' + d.route}</td>
+            <td>${d.reason}</td>
+            <td>${d.delta_bits} (${d.bit_complexity}b wire)</td>
+            <td>A:${d.remaining_budgets.A} B:${d.remaining_budgets.B} C:${d.remaining_budgets.C}</td>
+          </tr>`).join('');
+      } else {
+        dBody.innerHTML = '<tr><td colspan="6">Henüz indirme kapısı kararı yok.</td></tr>';
+      }
+
+      // Render Mutex or Firestore Mod B
+      const mBody = document.getElementById('mutex-msg-body');
+      if (state.mutex) {
+        document.getElementById('metric-mutex-msgs').textContent = `${state.mutex.total_messages} / 12`;
+        if (state.mutex.messages.length > 0) {
+          mBody.innerHTML = state.mutex.messages.map(m => `
+            <tr>
+              <td>${m.step}</td>
+              <td>${m.msg_type}</td>
+              <td>${m.sender} → ${m.receiver}</td>
+              <td>TS=${m.req_ts}</td>
+              <td>${m.piggybacked_ledger ? JSON.stringify(m.piggybacked_ledger.A || {}) : '-'}</td>
+            </tr>`).join('');
+        } else {
+          mBody.innerHTML = '<tr><td colspan="5" class="pill-err">Mutex Kapalı! 0 koordinasyon mesajı → her kapı kendi eski defteriyle karar verdi, bütçe çift harcandı!</td></tr>';
+        }
+      } else if (state.firestore) {
+        document.getElementById('metric-mutex-msgs').textContent = `${state.firestore.total_tx_attempts} TX (${state.firestore.occ_retry_count} retry) · ${state.firestore.backend_mode}`;
+        mBody.innerHTML = state.firestore.tx_events.map(e => `
+          <tr>
+            <td>${e.step}</td>
+            <td class="${e.status === 'COMMITTED' ? 'pill-ok' : 'pill-err'}">${e.status}</td>
+            <td>${e.instance_id} (${e.query_id})</td>
+            <td>v${e.read_version} → v${e.committed_version} (Deneme #${e.tx_attempt})</td>
+            <td>ΔL=${e.delta_bits}b | Kalan A:${e.remaining_budgets.A}</td>
+          </tr>`).join('');
+      } else {
+        document.getElementById('metric-mutex-msgs').textContent = '0 / 12';
+        mBody.innerHTML = '<tr><td colspan="5">Senaryo 3b (Ricart-Agrawala) veya 3c (Mod B Firestore TX) seçildiğinde izler burada listelenir.</td></tr>';
+      }
+
+      // Render Audit Summaries
+      const aBody = document.getElementById('audit-body');
+      if (state.audit_summaries && state.audit_summaries.length > 0) {
+        aBody.innerHTML = state.audit_summaries.map(s => `
+          <tr>
+            <td>${s.window_id}</td>
+            <td class="pill-ok">${s.approved_cloud_count}</td>
+            <td class="pill-err">${s.rejected_local_count}</td>
+            <td>A:${s.leaked_bits_per_owner.A} B:${s.leaked_bits_per_owner.B} C:${s.leaked_bits_per_owner.C}</td>
+            <td>${s.total_tree_messages} / ${s.total_mutex_messages}</td>
+            <td class="${s.invariant_preserved ? 'pill-ok' : 'pill-err'}">${s.invariant_preserved ? 'KORUNDU (≤ B_o)' : 'İHLAL (> B_o)'}</td>
+          </tr>`).join('');
+      } else {
+        aBody.innerHTML = '<tr><td colspan="6">Denetim kaydı yok.</td></tr>';
+      }
+    }
+
+    let animTimer = null;
+    function animateTreeMessages(messages) {
+      if (animTimer) clearInterval(animTimer);
+      const nodes = ['ROOT', 'A', 'B', 'C'];
+      const banner = document.getElementById('tree-anim-banner');
+      let idx = 0;
+      animTimer = setInterval(() => {
+        nodes.forEach(n => {
+          const el = document.getElementById('pill-' + n);
+          if (el) el.classList.remove('active-step');
+        });
+        if (idx >= messages.length) {
+          clearInterval(animTimer);
+          banner.textContent = 'Tamamlandı: 2n-2 = 6 Mesaj (3 BCAST + 3 CONVCAST) — Kök Etiket Birleşimi Hazır';
+          return;
+        }
+        const m = messages[idx];
+        const sEl = document.getElementById('pill-' + m.sender);
+        const rEl = document.getElementById('pill-' + m.receiver);
+        if (sEl) sEl.classList.add('active-step');
+        if (rEl) rEl.classList.add('active-step');
+        banner.textContent = `Adım ${m.step}/6 [${m.msg_type}]: ${m.sender} → ${m.receiver} | VC=${JSON.stringify(m.vc)}`;
+        idx++;
+      }, 320);
+    }
+
+    fetch('/api/state').then(r => r.json()).then(render);
+  </script>
+</body>
+</html>

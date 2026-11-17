@@ -1,0 +1,4 @@
+docs/
+presentation/
+**/__pycache__/
+*.md

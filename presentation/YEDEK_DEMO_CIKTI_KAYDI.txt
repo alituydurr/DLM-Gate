@@ -1,0 +1,64 @@
+================================================================================
+DLM-GATE: CANLI SINIF DEMOSU VE YEDEK DOGRULAMA KAYDI (3 ADIM - 12 DAKIKA)
+================================================================================
+
+[ADIM 1] Derinligi 2 Olan Agacta Bcast_ST / Ccast_ST, Vector Clock ve DLM Butce Dusumu
+--------------------------------------------------------------------------------
+• Agac Topolojisi: KOK -> A -> C ve KOK -> B (n=4 dugum, Derinlik=2)
+• Theorem 4.5 Mesaj Sayisi: 3 BCAST + 3 CONVCAST = 6 / 6 mesaj
+  [1] BCAST    | ROOT -> A    | Etiket: -                                | VC: {'ROOT': 1, 'A': 0, 'B': 0, 'C': 0}
+  [2] BCAST    | ROOT -> B    | Etiket: -                                | VC: {'ROOT': 2, 'A': 0, 'B': 0, 'C': 0}
+  [3] BCAST    | A    -> C    | Etiket: -                                | VC: {'ROOT': 1, 'A': 2, 'B': 0, 'C': 0}
+  [4] CONVCAST | C    -> A    | Etiket: {C:{A,C}} [Int:HIGH]             | VC: {'ROOT': 1, 'A': 2, 'B': 0, 'C': 2}
+  [5] CONVCAST | A    -> ROOT | Etiket: {A:{A,B,C}; C:{A,C}} [Int:HIGH]  | VC: {'ROOT': 1, 'A': 4, 'B': 0, 'C': 2}
+  [6] CONVCAST | B    -> ROOT | Etiket: {B:{A,B}} [Int:LOW]              | VC: {'ROOT': 2, 'A': 0, 'B': 2, 'C': 0}
+• Ara Dugum A Birlesimi (L_A ⊔ L_C): effectiveReaders = ['A', 'C']
+• Kok Birlesimi (L_root): effectiveReaders = ['A'] | Integrity = LOW
+• Indirme Karari: demo1-q1 -> CLOUD_GEMINI | ΔL = 2.0 bit <= 56 bit (Wire)
+• Kalan Butceler (Her 3 kurumdan 2'ser bit dustu): A=6.0b, B=6.0b, C=6.0b
+
+[ADIM 2] Dolayli Komut Enjeksiyonu Altinda Teorem 1 ve Teorem 2 (Dayanikli Indirme)
+--------------------------------------------------------------------------------
+  [RED ] demo2-inj-llm-output   | Sema: risk_level | Hedef: LOCAL_ENCLAVE | ΔL=0.0b | Gerekce: BYZANTINE_INVALID_SCHEMA_VALUE
+  [RED ] demo2-inj-replan       | Sema: free_text  | Hedef: LOCAL_ENCLAVE | ΔL=0.0b | Gerekce: THEOREM2_UNTRUSTED_PLAN_DECISION
+  [RED ] demo2-inj-freetext     | Sema: free_text  | Hedef: LOCAL_ENCLAVE | ΔL=0.0b | Gerekce: THEOREM2_UNAPPROVED_SCHEMA:free_text
+  [RED ] demo2-inj-sink         | Sema: risk_level | Hedef: LOCAL_ENCLAVE | ΔL=0.0b | Gerekce: THEOREM2_UNAUTHORIZED_TARGET:ATTACKER_EXT
+  [RED ] demo2-unendorsed       | Sema: risk_level | Hedef: LOCAL_ENCLAVE | ΔL=0.0b | Gerekce: THEOREM2_UNENDORSED_LOW_INTEGRITY
+  [ONAY] demo2-endorsed-schema  | Sema: risk_level | Hedef: CLOUD_GEMINI  | ΔL=2.0b | Gerekce: APPROVED_ENDORSED_SCHEMA
+• Sonuc: 5 saldiri/izinsiz adim 0.0 bit ile LOCAL_ENCLAVE'de tutuldu; onayli 4 secenekli sema en fazla 2.0 bit harcadi.
+
+[ADIM 3A] Mutex Kapali: Koordinasyonsuz Kopyalar Ayni Butceyi Gorur -> Cift Harcama (B_A = 4.0 bit)
+--------------------------------------------------------------------------------
+• Koordinasyon Mesaji: 0 mesaj
+• Harcanan Bitler: A=6.0b / 4.0b -> BUTCE IHLALI (Breached=True)!
+
+[ADIM 3B] Mod A: Ricart-Agrawala + Piggybacked G-Counter CRDT Acikken (N=3 Kapi: gate-1..3)
+--------------------------------------------------------------------------------
+• Ricart-Agrawala Mesaj Sayisi: 6 REQUEST + 6 OKAY = 12 mesaj (Giris basi 2(N-1)=4)
+  ( 1) REQUEST gate-3 -> gate-1 | ts=1
+  ( 2) REQUEST gate-3 -> gate-2 | ts=1
+  ( 3) REQUEST gate-1 -> gate-2 | ts=1
+  ( 4) REQUEST gate-1 -> gate-3 | ts=1
+  ( 5) REQUEST gate-2 -> gate-1 | ts=1
+  ( 6) REQUEST gate-2 -> gate-3 | ts=1
+  ( 7) OKAY    gate-2 -> gate-1 | ts=1 | defter A={}
+  ( 8) OKAY    gate-3 -> gate-1 | ts=1 | defter A={}
+  ( 9) OKAY    gate-3 -> gate-2 | ts=1 | defter A={}
+  (10) OKAY    gate-1 -> gate-3 | ts=1 | defter A={'gate-1': 2.0}
+  (11) OKAY    gate-1 -> gate-2 | ts=1 | defter A={'gate-1': 2.0}
+  (12) OKAY    gate-2 -> gate-3 | ts=1 | defter A={'gate-1': 2.0, 'gate-2': 2.0}
+  • q-1 -> CLOUD_GEMINI  | ΔL=2.0b | Kalan A=2.0b | Gerekce: APPROVED_ENDORSED_SCHEMA
+  • q-2 -> CLOUD_GEMINI  | ΔL=2.0b | Kalan A=0.0b | Gerekce: APPROVED_ENDORSED_SCHEMA
+  • q-3 -> LOCAL_ENCLAVE | ΔL=0.0b | Kalan A=0.0b | Gerekce: THEOREM1_BUDGET_EXCEEDED:A
+• Sonuc: Ilk 2 sorgu CLOUD_GEMINI'ye onaylandi (4.0 bit), 3. sorgu LOCAL_ENCLAVE'e yonlendirildi (Breached=False).
+
+[ADIM 3C] Mod B: Durumsuz Kopyalar + Firestore Atomik OCC Transaction (defter: LOCAL_DOCKER_FIRESTORE_TX)
+--------------------------------------------------------------------------------
+• Toplam Transaction Denemesi: 6 (OCC Otomatik Retry: 3)
+  [1] cloud-run-1 (q-1) | Deneme #1 | v1->v2 | COMMITTED      | Kalan A=2.0b
+  [2] cloud-run-2 (q-2) | Deneme #1 | v1->v2 | ABORTED_RETRY  | Kalan A=2.0b
+  [3] cloud-run-3 (q-3) | Deneme #1 | v1->v2 | ABORTED_RETRY  | Kalan A=2.0b
+  [4] cloud-run-2 (q-2) | Deneme #2 | v2->v3 | COMMITTED      | Kalan A=0.0b
+  [5] cloud-run-3 (q-3) | Deneme #2 | v2->v3 | ABORTED_RETRY  | Kalan A=0.0b
+  [6] cloud-run-3 (q-3) | Deneme #3 | v3->v3 | DENIED_BUDGET  | Kalan A=0.0b
+================================================================================
