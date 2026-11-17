@@ -15,7 +15,7 @@ Proje, *Dağıtık Sistemler ve Algoritmalar* dersi kapsamında geliştirilmiş 
 
 ## Nasıl çalışır?
 
-1. **Veri etiketiyle gelir.** Her kurum belgesinin kimler tarafından okunabileceğini kendisi belirler (DLM, *Decentralized Label Model*). Dış kaynaklı belgeler düşük güvenilirlikli (`LOW`) işaretlenir.
+1. **Veri kurumda kalır ve etiketiyle gelir.** Ham veri hiçbir zaman buluta taşınmaz; ajan verinin yanında çalışır. Her kurum belgesinin kimler tarafından okunabileceğini kendisi belirler (DLM, *Decentralized Label Model*). Dış kaynaklı belgeler düşük güvenilirlikli (`LOW`) işaretlenir.
 2. **Sorgu ağaçta dağılır, cevaplar birleşerek toplanır.** Koordinatör yayılan ağaç üzerinden yayın (broadcast) ve toplama (convergecast) yapar: 4 düğümde 2n − 2 = 6 mesaj.
 3. **Etiketler birleşir.** Ara düğümler cevapları birleştirirken etiketleri de birleştirir (⊔); okuyabilenler kesişir. Birleşim değişmeli, birleşmeli ve idempotent olduğundan koordinasyon gerekmez.
 4. **Kapı karar verir.** Mealy makinesi olarak kurulan kapı altı kontrolü sırayla yapar: plan güvenilir mi, alıcı izinli mi, şema onaylı mı, düşük güvenilirlikli veri açıkça onaylanmış mı, değer şemada mı, bütçe yetiyor mu. Geçerse en fazla 2 bit dışarı çıkar ve bütçeden düşülür; geçmezse sorgu yerelde kalır.
@@ -27,13 +27,14 @@ Düz oklar bugün çalışan bağlantıları, kesikli oklar ve gri kutular planl
 
 ```mermaid
 flowchart LR
-    subgraph Kurumlar
+    subgraph Kurumlar["Kurumlar · veri kendi sunucusunda kalır"]
         A["A · Sağlık"]
         B["B · Siber (LOW)"]
         C["C · Lojistik"]
     end
-    GCS[("Cloud Storage<br/>veri · denetim arşivi")]:::plan
-    K["Koordinatör<br/>yayılan ağaç"]
+    GCS[("Cloud Storage<br/>denetim arşivi")]:::plan
+    U(["Kullanıcı<br/>soru"])
+    K["Koordinatör<br/>plan + yayılan ağaç"]
     subgraph GKE["Kubernetes (GKE) · planlı"]
         subgraph Docker["Docker"]
             G1["gate-1"]
@@ -48,7 +49,8 @@ flowchart LR
     GM["Gemini 2.5 Flash<br/>yalnızca ≤ 2 bit"]
     CVM["Confidential VM<br/>yerel model"]:::plan
 
-    GCS -.-> Kurumlar
+    U -->|"soru"| K
+    K -->|"soru"| Kurumlar
     Kurumlar -->|"cevap + etiket"| K
     K --> Docker
     G1 <-->|"REQUEST / OKAY"| KF
@@ -57,6 +59,7 @@ flowchart LR
     KF -.->|"denetim kayıtları"| GCS
     GCS -.-> SP
     Docker -->|"onaylı cevap"| GM
+    GM -->|"özet"| U
     Docker -.->|"reddedilen sorgu"| CVM
     Docker -->|"aynı imaj"| CR
     CR <-->|"sürüm kontrollü işlem"| FS
@@ -73,7 +76,7 @@ flowchart LR
 | Google Cloud Run | Aynı Docker imajıyla kontrol paneli | Çalışıyor |
 | Firestore | Bulut kopyalarının ortak, sürüm kontrollü bütçe defteri (`GCP_PROJECT_ID` yoksa yerel defter) | Çalışıyor |
 | Gemini 2.5 Flash | Yalnızca kapıdan geçmiş, en fazla 2 bitlik cevabı alır (`GEMINI_API_KEY` yoksa simüle) | Çalışıyor |
-| Cloud Storage | Kurum belgeleri ve değiştirilemez denetim arşivi | Planlı |
+| Cloud Storage | Değiştirilemez denetim arşivi (ham kurum verisi buluta çıkmaz) | Planlı |
 | Kubernetes (GKE) · yönetilen Kafka | Kapıların birden çok sunucuda yönetimi | Planlı |
 | Apache Spark (Dataproc) | Denetim kayıtlarının dağıtık analizi (bugün düz Python) | Planlı |
 | Confidential VM | Reddedilen sorguların yalıtılmış makinede yerel modelle işlenmesi | Planlı |
