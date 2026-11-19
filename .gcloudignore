@@ -2,3 +2,4 @@ docs/
 presentation/
 **/__pycache__/
 *.md
+ozel/
