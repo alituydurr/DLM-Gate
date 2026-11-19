@@ -20,7 +20,7 @@ class FirestoreTxEvent:
     instance_id: str
     query_id: str
     tx_attempt: int
-    status: str  # "COMMITTED" | "ABORTED_RETRY" | "DENIED_BUDGET" | "DENIED_POLICY"
+    status: str  # "COMMITTED" | "ABORTED_RETRY" | "DENIED_BUDGET" | "DENIED_POLICY" | "DENIED_LEDGER_UNAVAILABLE"
     read_version: int
     committed_version: int
     delta_bits: float
@@ -31,7 +31,7 @@ class FirestoreTxEvent:
 class ModBCloudRunResult:
     """Result of running concurrent requests across stateless Cloud Run instances using Firestore Transactions."""
 
-    backend_mode: str  # "GCP_FIRESTORE" | "LOCAL_DOCKER_FIRESTORE_TX" | "LOCAL_FALLBACK (...)"
+    backend_mode: str  # "GCP_FIRESTORE" | "LOCAL_DOCKER_FIRESTORE_TX" | "FAIL_CLOSED (...)"
     instance_count: int
     decisions: list[DeclassDecision]
     tx_events: list[FirestoreTxEvent]
@@ -152,18 +152,31 @@ class FirestoreTransactionStore:
         return dict(state["spent"]), remaining_bits(state)
 
 
+class UnavailableLedgerStore:
+    """Fail-closed: Firestore beklenirken ulaşılamıyorsa defter okunamaz, hiçbir harcama yapılmaz."""
+
+    def __init__(self, budgets: dict[str, float], exc: Exception) -> None:
+        self.backend_mode = f"FAIL_CLOSED ({type(exc).__name__})"
+        self._budgets = dict(budgets)
+        self._exc = exc
+
+    def read_snapshot(self) -> tuple[int, dict[str, float], dict[str, float]]:
+        raise RuntimeError("Firestore defterine ulaşılamıyor") from self._exc
+
+    def state_summary(self) -> tuple[dict[str, float], dict[str, float]]:
+        return {o: 0.0 for o in self._budgets}, {o: self._budgets[o] for o in sorted(self._budgets)}
+
+
 def make_ledger_store(budgets: dict[str, float]):
-    """Real Firestore when GCP_PROJECT_ID is set; local ledger otherwise or if Firestore is unreachable."""
+    """Real Firestore when GCP_PROJECT_ID is set; local ledger otherwise. Unreachable Firestore fails closed."""
     project_id = os.getenv("GCP_PROJECT_ID", "")
     if not project_id:
         return LocalFirestoreTransactionStore(budgets)
     try:
         return FirestoreTransactionStore(budgets, project_id)
-    except Exception as exc:  # keep the live demo running, but make the fallback visible on the panel
-        print(f"[firestore] bağlanılamadı, yerel deftere dönülüyor: {exc}", flush=True)
-        store = LocalFirestoreTransactionStore(budgets)
-        store.backend_mode = f"LOCAL_FALLBACK ({type(exc).__name__})"
-        return store
+    except Exception as exc:
+        print(f"[firestore] bağlanılamadı, tüm sorgular reddedilecek: {exc}", flush=True)
+        return UnavailableLedgerStore(budgets, exc)
 
 
 class HybridLLMRouter:
@@ -274,6 +287,19 @@ def run_mod_b_firestore_simulation(
 
     def stateless_cloud_run_worker(idx: int, instance_id: str, req: DeclassRequest) -> None:
         start_barrier.wait()
+        try:
+            run_worker(idx, instance_id, req)
+        except Exception:
+            # Fail-closed: defter okunamıyor/yazılamıyorsa sorgu reddedilir, buluta hiçbir şey çıkmaz
+            denied = GateFSM(budgets=init_budgets, replica_id=instance_id)._deny(
+                req, "LEDGER_UNAVAILABLE_FAIL_CLOSED", GateFSM.message_bit_complexity(req.candidate_value)
+            )
+            record_tx(instance_id, req.query_id, 0, "DENIED_LEDGER_UNAVAILABLE", 0, 0, 0.0, {})
+            decisions_by_idx[idx] = denied
+            with log_lock:
+                llm_responses[req.query_id] = router.execute(denied)
+
+    def run_worker(idx: int, instance_id: str, req: DeclassRequest) -> None:
         attempt = 0
         while True:
             attempt += 1

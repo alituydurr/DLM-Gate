@@ -142,6 +142,28 @@ def test_real_firestore_store_path_with_fake_client() -> None:
     assert doc.writes == 3, "1 reset + 2 committed transactions; aborted attempts must not write"
 
 
+def test_unreachable_firestore_fails_closed() -> None:
+    """Firestore beklenirken ulaşılamazsa yerel deftere düşülmez: tüm sorgular reddedilir, 0 bit harcanır."""
+    saved = sys.modules.get("google.cloud.firestore")
+    sys.modules["google.cloud.firestore"] = None  # import -> ImportError
+    os.environ["GCP_PROJECT_ID"] = "test-project"
+    try:
+        res = run_mod_b_firestore_simulation(budgets={"A": 4.0, "B": 8.0, "C": 8.0})
+    finally:
+        os.environ.pop("GCP_PROJECT_ID")
+        if saved is None:
+            sys.modules.pop("google.cloud.firestore", None)
+        else:
+            sys.modules["google.cloud.firestore"] = saved
+
+    assert res.backend_mode.startswith("FAIL_CLOSED")
+    assert all(not d.approved and d.reason == "LEDGER_UNAVAILABLE_FAIL_CLOSED" for d in res.decisions)
+    assert all(d.emitted_value is None for d in res.decisions)
+    assert all("LOCAL_ENCLAVE" in r["target"] for r in res.llm_responses.values())
+    assert res.final_spent == {"A": 0.0, "B": 0.0, "C": 0.0}
+    assert res.budget_breached is False
+
+
 def test_dashboard_mod_b_and_cloud_run_script() -> None:
     rt = DashboardRuntime()
     state = rt.run_scenario_3_firestore()
@@ -164,5 +186,6 @@ if __name__ == "__main__":
     test_mod_b_firestore_atomic_transactions_and_occ_retries()
     test_versioned_spend_rejects_stale_writes()
     test_real_firestore_store_path_with_fake_client()
+    test_unreachable_firestore_fails_closed()
     test_dashboard_mod_b_and_cloud_run_script()
     print("[PASS] Faz 5 Mod B (Cloud Run + Firestore Atomic OCC Transaction & Hybrid Router) yerel ve Firestore yolunda dogrulandi.")

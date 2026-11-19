@@ -135,7 +135,7 @@ docker compose -f docker/docker-compose.yml exec gate-1 python -m src.stream.gat
 GCP_PROJECT_ID=<proje-id> bash docker/deploy_cloud_run.sh
 ```
 
-Betik gerekli API'leri açar, Firestore veritabanını oluşturur, Cloud Run hesabına Firestore erişimi verir ve paneli yayınlar. Panelde senaryo 3c çalıştırıldığında sağ üstte **Defter: gerçek Firestore** görünüyorsa bütçe defteri Firestore'daki `dlm_gate/budget_ledger` belgesindedir; bağlantı kurulamazsa panel yerel deftere döner ve `LOCAL_FALLBACK (...)` gösterir.
+Betik gerekli API'leri açar, Firestore veritabanını oluşturur, Cloud Run hesabına Firestore erişimi verir ve paneli yayınlar. Panelde senaryo 3c çalıştırıldığında sağ üstte **Defter: gerçek Firestore** görünüyorsa bütçe defteri Firestore'daki `dlm_gate/budget_ledger` belgesindedir; bağlantı kurulamazsa sistem yerel deftere dönmez, kapalı kalır (fail-closed): panel `FAIL_CLOSED (...)` gösterir ve tüm sorgular 0 bit ile reddedilir.
 
 ## Sınırlar
 
