@@ -211,7 +211,7 @@
     const ds = st.decisions || [];
     document.getElementById('m-bits').textContent = bits(ds.filter(d => d.approved).reduce((a, d) => a + d.delta_bits, 0));
     document.getElementById('decisions-body').innerHTML = ds.length ? ds.map(d => `
-      <tr><td class="mono">${esc(d.query_id)}</td><td>${esc(d.emitted_value || d.schema_name)}</td>
+      <tr><td class="mono">${esc(d.query_id)}</td><td>${esc(d.emitted_value || '—')}</td>
       <td><span class="pill ${d.approved ? 'ok' : 'no'}">${d.approved ? 'bulut' : 'yerel'}</span></td>
       <td>${esc(reason(d.reason))}</td><td>${bits(d.delta_bits)}</td></tr>`).join('') : empty(5, 'Henüz karar yok.');
 

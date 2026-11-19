@@ -38,4 +38,4 @@ gcloud run deploy "${SERVICE_NAME}" \
 
 echo "[5/5] Deployment complete! Service URL:"
 gcloud run services describe "${SERVICE_NAME}" --project "${PROJECT_ID}" --region "${REGION}" --format="value(status.url)"
-echo "Panelde '3c' senaryosunu calistirin: TX sayacinin yaninda GCP_FIRESTORE yaziyorsa defter gercek Firestore'da."
+echo "Panelde '3c' senaryosunu calistirin: sag ustte 'Defter: gercek Firestore' yaziyorsa defter Firestore'da."
